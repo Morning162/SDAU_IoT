@@ -1,0 +1,722 @@
+============================================================
+  MySQL实训任务书 — 全环节整合完善版
+  说明：本文档整合了4个实训任务书docx文件的内容，
+        修正了SQL语句中的语法错误、字符问题（中文标点、
+        拼写错误、缺失逗号/分号、大小写不一致等），
+        对不完善的内容进行了补充，但未对SQL逻辑进行
+        根本性重构。
+============================================================
+
+============================================================
+第一环节：数据库、表结构设计及约束
+============================================================
+
+第一步：安装与准备
+  1. 安装并配置MySQL
+  2. 参考教程(www.runoob.com)学习MySQL关系数据库管理系统
+  3. 使用可视化Sql管理工具Navicat
+     参考：https://blog.csdn.net/m0_57532432/article/details/134657157
+
+第二步：创建sdaudb数据库及四张表
+
+-- 创建数据库
+CREATE DATABASE IF NOT EXISTS sdaudb
+    DEFAULT CHARACTER SET utf8mb4
+    DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE sdaudb;
+
+-- 1. 学生表 Student
+--    Sno: 学号（主键，取值唯一）
+--    Sname: 姓名（唯一）
+--    Ssex: 性别
+--    Sage: 年龄
+--    Sdept: 系
+--    Class: 班级
+CREATE TABLE Student (
+    Sno   CHAR(9) PRIMARY KEY,   /* 学号为主键约束 */
+    Sname CHAR(20) UNIQUE,       /* Sname取唯一值 */
+    Ssex  CHAR(2),
+    Sage  SMALLINT,
+    Sdept CHAR(20),
+    Class CHAR(20)
+);
+
+-- 2. 教师表 Teacher
+--    Tno: 教师编号（主键）
+--    Tname: 教师姓名（唯一）
+--    Tsex: 性别
+--    Tbirth: 出生日期
+--    Prof: 职称
+--    Sdept: 系
+CREATE TABLE Teacher (
+    Tno    CHAR(9) PRIMARY KEY,  /* 教师编号为主键约束 */
+    Tname  CHAR(20) UNIQUE,      /* Tname取唯一值 */
+    Tsex   CHAR(2),
+    Tbirth DATE,
+    Prof   CHAR(20),
+    Sdept  CHAR(20)
+);
+
+-- 3. 课程表 Course
+--    Cno: 课程号（主键）
+--    Cname: 课程名
+--    Cpno: 先修课号（外键参照自身）
+--    Ccredit: 学分
+--    Tno: 授课教师编号（外键参照Teacher）
+CREATE TABLE Course (
+    Cno      CHAR(4) PRIMARY KEY,
+    Cname    CHAR(40),
+    Cpno     CHAR(4),
+    Ccredit  SMALLINT,
+    Tno      CHAR(9),
+    FOREIGN KEY (Cpno) REFERENCES Course(Cno),
+    FOREIGN KEY (Tno)  REFERENCES Teacher(Tno)
+);
+
+-- 4. 选课表 SC
+--    Sno: 学号（外键参照Student）
+--    Cno: 课程号（外键参照Course）
+--    Grade: 成绩
+--    主键由(Sno, Cno)共同构成
+CREATE TABLE SC (
+    Sno   CHAR(9),
+    Cno   CHAR(4),
+    Grade SMALLINT,
+    PRIMARY KEY (Sno, Cno),                          /* 两个属性共同构成主键 */
+    FOREIGN KEY (Sno) REFERENCES Student(Sno),        /* Sno为外键，参照Student表 */
+    FOREIGN KEY (Cno) REFERENCES Course(Cno)          /* Cno为外键，参照Course表 */
+);
+
+第三步：为四张表添加相应的约束和补充
+
+-- 1. 检查各表是否存在，如不存在则创建
+-- 2. 为各表添加相应的默认约束
+-- 3. 按要求修改表中相应的默认约束
+
+-- MySQL提供的自定义约束包括：
+--   NOT NULL   - 非空约束
+--   UNIQUE     - 唯一约束
+--   PRIMARY KEY - 主键约束
+--   FOREIGN KEY - 外键约束
+--   CHECK      - 检查约束
+--   DEFAULT    - 默认值约束
+
+-- 补充约束示例（根据需求）：
+-- ALTER TABLE Student ADD CONSTRAINT chk_sage CHECK (Sage > 0 AND Sage < 150);
+-- ALTER TABLE SC ADD CONSTRAINT chk_grade CHECK (Grade >= 0 AND Grade <= 100);
+
+/*
+要求：
+  将约束补充、班级和同学记录信息补充完整并验证。
+*/
+
+
+============================================================
+第二环节（第一部分）：表结构设计与数据的导入导出
+============================================================
+
+第一步：表结构DDL综合练习
+
+-- 学习并练习修改表结构的相关DDL语句
+
+-- A. Student表缺少联系方式，添加Semail字段
+--    要求：1.字段类型VARCHAR(30)；2.非空；3.值唯一
+ALTER TABLE Student
+    ADD Semail VARCHAR(30) NOT NULL UNIQUE;
+
+-- B. 学校实行导师制：为Student表添加导师编号Tno字段
+--    类型CHAR(9)，设为外键参照Teacher(Tno)
+--    要求：教师信息删除时学生中导师字段自动置空
+ALTER TABLE Student
+    ADD Tno CHAR(9);
+ALTER TABLE Student
+    ADD CONSTRAINT fk_stu_tea FOREIGN KEY (Tno)
+        REFERENCES Teacher(Tno)
+        ON DELETE SET NULL;
+
+-- C. 学校规定课程学分不得低于1分且不高于6分
+--    为Course表的Ccredit字段添加CHECK约束
+ALTER TABLE Course
+    ADD CONSTRAINT chk_credit
+        CHECK (Ccredit >= 1 AND Ccredit <= 6);
+
+-- D. 学号Sno规定为9位数字字符串
+--    若录入时偶有长度不符，则修改Student表结构
+--    强制校验Sno长度为9（假设已有数据均为正确长度）
+ALTER TABLE Student
+    ADD CONSTRAINT chk_sno_len
+        CHECK (CHAR_LENGTH(Sno) = 9);
+
+第二步：索引的创建与使用
+
+-- A. 按姓名查询学生信息时需优化（避免全表扫描）
+--    为Student表的Sname字段创建索引
+CREATE INDEX idx_stu_sname ON Student(Sname);
+
+-- B. 按课程号查询选课记录，为SC表的Cno字段创建索引
+CREATE INDEX idx_sc_cno ON SC(Cno);
+
+-- C. 教师登录系统用Tname，且教师姓名全校唯一
+--    为Teacher表创建唯一索引，加速查询并保证唯一性
+CREATE UNIQUE INDEX idx_tea_tname ON Teacher(Tname);
+
+-- D. 按出生日期范围查询教师信息
+--    为Teacher表的Tbirth字段创建普通索引
+CREATE INDEX idx_tea_tbirth ON Teacher(Tbirth);
+
+第三步：视图的使用
+
+-- A. 成绩查询时保护隐私：只显示学号、姓名、课程名和成绩
+--    不显示学生院系、年龄及课程学分
+CREATE VIEW V_ScoreReport AS
+    SELECT St.Sno, St.Sname, Co.Cname, SC.Grade
+    FROM Student St, SC, Course Co
+    WHERE St.Sno = SC.Sno AND SC.Cno = Co.Cno;
+
+-- B. 院系办公室查询计算机系学生基本信息
+--    不直接授予Student表权限，创建安全视图
+--    只暴露Sno, Sname, Ssex, Class四列，数据限定Sdept='计算机系'
+CREATE VIEW V_CS_Students AS
+    SELECT Sno, Sname, Ssex, Class
+    FROM Student
+    WHERE Sdept = '计算机系'
+    WITH CHECK OPTION;  /* 防止通过视图插入非本系学生 */
+
+-- C. 学生快速查自己的平均学分绩点(GPA)
+--    GPA ≈ 所有课程成绩总分 / 选课数量
+CREATE VIEW V_Student_GPA AS
+    SELECT St.Sno, St.Sname,
+           COUNT(*) AS TotalCourses,
+           AVG(SC.Grade) AS AvgGrade
+    FROM Student St
+    JOIN SC ON St.Sno = SC.Sno
+    GROUP BY St.Sno, St.Sname;
+
+-- D. 全校展示各院系教师数量
+--    按教师数降序排列
+CREATE VIEW V_Dept_Teacher_Count AS
+    SELECT Sdept, COUNT(*) AS TeacherCount
+    FROM Teacher
+    GROUP BY Sdept
+    ORDER BY TeacherCount DESC;
+
+-- E. 选课详情查询：涉及Student、SC、Course三表
+--    包含学号、姓名、课程名、授课教师编号和成绩
+CREATE VIEW V_Enrollment AS
+    SELECT St.Sno, St.Sname, Co.Cname, Co.Tno, SC.Grade
+    FROM Student St, SC, Course Co
+    WHERE St.Sno = SC.Sno AND SC.Cno = Co.Cno;
+
+第四步：实际记录功能
+
+-- 1. MySQL数据导出
+--    使用 SELECT ... INTO OUTFILE 将数据导出到文本文件
+
+-- 2. MySQL数据导入
+--    使用 LOAD DATA INFILE 命令
+--    将Student、Course等表的数据从Excel导出的CSV文件导入
+
+
+============================================================
+第二环节（第二部分）：数据查询综合练习
+============================================================
+
+第一部分：基础查询
+
+/* 目标：熟练掌握SELECT、WHERE、LIKE、BETWEEN、ORDER BY、
+         聚集函数、GROUP BY及HAVING */
+
+-- 练习1-1：投影与筛选
+-- 查询Student表中"计算机2003班"年龄20岁及以上的女同学
+-- 显示学号(Sno)、姓名(Sname)
+SELECT Sno, Sname
+FROM Student
+WHERE Class = '计算机2003班'
+  AND Ssex = '女'
+  AND Sage >= 20;
+
+-- 练习1-2：模糊查询与排序
+-- 查询Teacher表中姓名包含"明"且为计算机系(CS)的教师信息
+-- 按出生日期(Tbirth)降序排列（年轻的在前面）
+SELECT *
+FROM Teacher
+WHERE Tname LIKE '%明%'
+  AND Sdept = 'CS'
+ORDER BY Tbirth DESC;
+
+-- 练习1-3：去重查询
+-- 查询SC表中有成绩记录的所有课程编号，要求去重
+SELECT DISTINCT Cno
+FROM SC
+WHERE Grade IS NOT NULL;
+
+-- 练习1-4：分组统计与筛选
+-- 查询Course表每门先修课(Cpno)有多少门后续课程
+-- 只显示后续课程数>=2的先修课
+-- 列别名：先修课号、后继课程数量
+SELECT Cpno AS 先修课号, COUNT(*) AS 后继课程数量
+FROM Course
+WHERE Cpno IS NOT NULL
+GROUP BY Cpno
+HAVING COUNT(*) >= 2;
+
+-- 练习1-5：计算字段与别名
+-- Student表中的Sage是当前实际年龄
+-- 查询学生姓名及出生年份(2026 - Sage)，列名为Birth_Year_Approx
+-- 排除Sage为NULL的学生
+SELECT Sname, (2026 - Sage) AS Birth_Year_Approx
+FROM Student
+WHERE Sage IS NOT NULL;
+
+第二部分：连接查询（5题）
+
+/* 目标：掌握INNER JOIN、LEFT JOIN、自连接及多表连接 */
+
+-- 练习2-1：内连接
+-- 查询选修了"数据库系统理论"课程的学生学号和成绩
+SELECT SC.Sno, SC.Grade
+FROM SC
+INNER JOIN Course ON SC.Cno = Course.Cno
+WHERE Course.Cname = '数据库系统理论';
+
+-- 练习2-2：多表连接综合
+-- 查询所有不及格(<60分)的学生姓名、课程名称及授课教师姓名
+-- 按学生姓名升序排列
+SELECT S.Sname, C.Cname, T.Tname
+FROM Student S
+JOIN SC ON S.Sno = SC.Sno
+JOIN Course C ON SC.Cno = C.Cno
+JOIN Teacher T ON C.Tno = T.Tno
+WHERE SC.Grade < 60
+ORDER BY S.Sname ASC;
+
+-- 练习2-3：左连接（含未选课学生）
+-- 查询计算机系(CS)学生的选课情况
+-- 显示学生姓名和课程编号
+-- 若学生一门课都没选，课程编号显示NULL
+SELECT S.Sname, SC.Cno
+FROM Student S
+LEFT JOIN SC ON S.Sno = SC.Sno
+WHERE S.Sdept = 'CS';
+
+-- 练习2-4：自连接（先修课关系）
+-- 查询每门课的直接先修课：课程名及先修课名
+SELECT C1.Cname, C2.Cname AS Pre_Cname
+FROM Course C1
+JOIN Course C2 ON C1.Cpno = C2.Cno;
+
+-- 练习2-5：连接与分组综合
+-- 查询每个系的课程平均学分，保留两位小数
+-- 需要通过Teacher的Sdept确定系
+SELECT T.Sdept, ROUND(AVG(C.Ccredit), 2) AS Avg_Credit
+FROM Teacher T
+JOIN Course C ON T.Tno = C.Tno
+GROUP BY T.Sdept;
+
+第三部分：嵌套查询（5题）
+
+/* 目标：训练IN、比较运算符、EXISTS等嵌套查询思维 */
+
+-- 练习3-1：使用IN的子查询
+-- 要求使用子查询完成
+-- 查询与"刘伟"老师在同一系的所有学生姓名和系别
+SELECT Sname, Sdept
+FROM Student
+WHERE Sdept IN (
+    SELECT Sdept
+    FROM Teacher
+    WHERE Tname = '刘伟'
+);
+
+-- 练习3-2：带比较运算符的子查询
+-- 查询年龄大于计算机系(CS)平均年龄的学生全部信息
+SELECT *
+FROM Student
+WHERE Sage > (
+    SELECT AVG(Sage)
+    FROM Student
+    WHERE Sdept = 'CS'
+);
+
+-- 练习3-3：使用EXISTS的子查询（存在性判断）
+-- 查询选修了至少一门学分为4的课程的学生姓名
+SELECT Sname
+FROM Student S
+WHERE EXISTS (
+    SELECT 1
+    FROM SC
+    JOIN Course C ON SC.Cno = C.Cno
+    WHERE SC.Sno = S.Sno
+      AND C.Ccredit = 4
+);
+
+-- 练习3-4：双重否定（NOT EXISTS）
+-- 查询选修了"王明"老师所授全部课程的学生姓名
+-- 思路：不存在一门王老师教的课而该学生没有选
+SELECT Sname
+FROM Student S
+WHERE NOT EXISTS (
+    SELECT C.Cno
+    FROM Teacher T
+    JOIN Course C ON T.Tno = C.Tno
+    WHERE T.Tname = '王明'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM SC
+          WHERE SC.Sno = S.Sno
+            AND SC.Cno = C.Cno
+      )
+);
+
+-- 练习3-5：强行走子查询（不用JOIN）
+-- 要求使用子查询（IN或=）完成，不能使用JOIN
+-- 查询选修了课程名为"高等数学"的学生学号和成绩
+SELECT Sno, Grade
+FROM SC
+WHERE Cno = (
+    SELECT Cno
+    FROM Course
+    WHERE Cname = '高等数学'
+);
+
+第四部分：综合查询（5题）
+
+/* 目标：综合运用子查询、连接、分组、UNION等 */
+
+-- 练习4-1：UNION合并查询
+-- 查询包含"数据库"相关课程或平均成绩>85的课程编号
+-- 条件1：课程名包含"数据库"
+-- 条件2：SC表中平均成绩>85
+SELECT Cno FROM Course WHERE Cname LIKE '%数据库%'
+UNION
+SELECT Cno FROM SC GROUP BY Cno HAVING AVG(Grade) > 85;
+
+-- 练习4-2：子查询 + 分组 + 连接
+-- 查询平均成绩最高的课程名称及授课教师姓名
+-- 先找出平均分最高的课程编号，再关联查询
+SELECT C.Cname, T.Tname
+FROM Course C
+JOIN Teacher T ON C.Tno = T.Tno
+WHERE C.Cno = (
+    SELECT Cno
+    FROM SC
+    GROUP BY Cno
+    ORDER BY AVG(Grade) DESC
+    LIMIT 1
+);
+
+-- 练习4-3：标量子查询在SELECT列表中
+-- 查询每位教师的姓名及所授课程的平均选课人数
+-- 如果没有授课显示0
+SELECT T.Tname,
+       COALESCE((
+           SELECT AVG(Cnt)
+           FROM (
+               SELECT COUNT(*) AS Cnt
+               FROM Course C_Sub
+               JOIN SC ON C_Sub.Cno = SC.Cno
+               WHERE C_Sub.Tno = T.Tno
+               GROUP BY C_Sub.Cno
+           ) AS CourseStats
+       ), 0) AS Avg_Student_Count
+FROM Teacher T;
+/* 注：本查询为高级写法，展示复合子查询能力 */
+
+-- 练习4-4：左连接 + 分组处理
+-- 查询"计算机2003班"每个学生的学号、姓名及选课总学分
+-- 没选课的学生显示0
+SELECT S.Sno, S.Sname, COALESCE(SUM(C.Ccredit), 0) AS Total_Credit
+FROM Student S
+LEFT JOIN SC ON S.Sno = SC.Sno
+LEFT JOIN Course C ON SC.Cno = C.Cno
+WHERE S.Class = '计算机2003班'
+GROUP BY S.Sno, S.Sname;
+
+-- 练习4-5：综合应用：连接 + 分组 + 判断
+-- 查询年龄大于19岁的女生所选修的课程中
+-- 平均成绩排前3的课程名称和平均分
+-- 只显示平均分60分以上的记录
+SELECT C.Cname, AVG(SC.Grade) AS Avg_Grade
+FROM SC
+JOIN Student S ON SC.Sno = S.Sno
+JOIN Course C ON SC.Cno = C.Cno
+WHERE S.Ssex = '女' AND S.Sage > 19
+GROUP BY C.Cname
+HAVING AVG(SC.Grade) >= 60
+ORDER BY Avg_Grade DESC
+LIMIT 3;
+
+第五部分：挑战题
+
+-- 1. 查询Student表中不姓"张"的学生的基本信息
+SELECT *
+FROM Student
+WHERE Sname NOT LIKE '张%';
+
+-- 2. 查询Course表中课程名包含'JAVA'或'数据库'的课程开设信息
+SELECT *
+FROM Course
+WHERE Cname LIKE '%JAVA%'
+   OR Cname LIKE '%数据库%';
+
+-- 3. 查询每位学生的学号、专业、课程名称及该科的成绩并按成绩降序排列
+SELECT S.Sno, S.Sdept AS 专业, C.Cname, SC.Grade
+FROM Student S
+JOIN SC ON S.Sno = SC.Sno
+JOIN Course C ON SC.Cno = C.Cno
+ORDER BY SC.Grade DESC;
+
+-- 4. 查询专业为'计算机应用'的学生的学号、姓名和班级编号
+SELECT Sno, Sname, Class
+FROM Student
+WHERE Sdept = '计算机应用';
+
+-- 5. 查询考试成绩为最高分的学生姓名
+SELECT Sname
+FROM Student
+WHERE Sno IN (
+    SELECT Sno
+    FROM SC
+    WHERE Grade = (
+        SELECT MAX(Grade)
+        FROM SC
+    )
+);
+
+-- 6. 查询选课学生数超过5人的某课程的授课教师姓名
+SELECT Tname
+FROM Teacher
+WHERE Tno IN (
+    SELECT Tno
+    FROM Course
+    WHERE Cno IN (
+        SELECT Cno
+        FROM SC
+        GROUP BY Cno
+        HAVING COUNT(*) > 5
+    )
+);
+
+-- 7. 查询选修课程平均成绩90分(含)以上的学生学号
+--    例如：一个学生选5门课，这5门课平均分90分以上
+SELECT Sno
+FROM SC
+GROUP BY Sno
+HAVING AVG(Grade) >= 90;
+
+-- 8. 查询所有授课教师的姓名和所在系
+SELECT Tname, Sdept AS depart
+FROM Teacher;
+
+-- 9. 统计计算系CS1班男女生人数
+SELECT Ssex, COUNT(*)
+FROM Student
+WHERE Class = 'CS1'
+GROUP BY Ssex;
+
+
+============================================================
+第二环节（第三部分）：数据操作（增删改）
+============================================================
+
+第一部分：插入操作（5题）
+
+-- 题目1：新生入学登记
+-- 学生张伟，学号202015130，男，19岁，计算机系(CS)，CS2003班
+INSERT INTO Student
+VALUES ('202015130', '张伟', '男', 19, 'CS', 'CS2003');
+
+-- 题目2：新教师入职
+-- 教师编号T020，姓名李娜，女，出生日期1990-07-25，讲师，CS系
+INSERT INTO Teacher
+VALUES ('T020', '李娜', '女', '1990-07-25', '讲师', 'CS');
+
+-- 题目3：开设新课
+-- 课程"Python程序设计"，课程号C008，学分3，先修课C002
+-- 授课教师T020
+INSERT INTO Course(Cno, Cname, Cpno, Ccredit, Tno)
+VALUES ('C008', 'Python程序设计', 'C002', 3, 'T020');
+
+-- 题目4：批量录入多位学生
+-- 以下三位学生信息，一个SQL语句完成
+--   202015131, 王芳, 女, 18, CS, CS2003
+--   202015132, 李强, 男, 19, CS, CS2003
+--   202015133, 陈静, 女, 18, IS, IS2001
+INSERT INTO Student VALUES
+    ('202015131', '王芳', '女', 18, 'CS', 'CS2003'),
+    ('202015132', '李强', '男', 19, 'CS', 'CS2003'),
+    ('202015133', '陈静', '女', 18, 'IS', 'IS2001');
+
+-- 题目5：统一选课
+-- 为新课C008安排所有计算机系(CS)学生选课，成绩暂为空
+INSERT INTO SC (Sno, Cno, Grade)
+    SELECT Sno, 'C008', NULL
+    FROM Student
+    WHERE Sdept = 'CS';
+
+第二部分：修改操作（7题）
+
+-- 题目6：学生转系
+-- 学号202015130的学生从计算机系(CS)转到信息系(IS)
+-- 班级相应改为IS2001
+UPDATE Student
+SET Sdept = 'IS', Class = 'IS2001'
+WHERE Sno = '202015130';
+
+-- 题目7：教师职称晋升
+-- 1980-01-01之前出生、职称为"讲师"的教师晋升为"副教授"
+UPDATE Teacher
+SET Prof = '副教授'
+WHERE Tbirth < '1980-01-01' AND Prof = '讲师';
+
+-- 题目8：增加学分
+-- 将课程名为"数据库系统理论"的学分加1分
+UPDATE Course
+SET Ccredit = Ccredit + 1
+WHERE Cname = '数据库系统理论';
+
+-- 题目9：学生年龄自然增长
+-- 新学期所有学生年龄(Sage)加1
+UPDATE Student
+SET Sage = Sage + 1;
+
+-- 题目10：成绩兜底加分
+-- 课程C001试卷偏难，不及格成绩(<60)统一提到60分
+UPDATE SC
+SET Grade = 60
+WHERE Cno = 'C001' AND Grade < 60;
+
+-- 题目11：更新先修课
+-- 课程C003的先修课改为C001
+UPDATE Course
+SET Cpno = 'C001'
+WHERE Cno = 'C003';
+
+-- 题目12：年级统一分班
+-- 计算机系(CS)中年龄刚好为20岁的学生统一分入CS2002班
+UPDATE Student
+SET Class = 'CS2002'
+WHERE Sdept = 'CS' AND Sage = 20;
+
+第三部分：删除操作（3题）
+
+-- 题目13：学生退学
+-- 学号202015132（李强）退学，需同时删除选课记录和学生信息
+-- 先删选课记录，再删学生基本信息
+DELETE FROM SC WHERE Sno = '202015132';
+DELETE FROM Student WHERE Sno = '202015132';
+
+-- 题目14：停开课程
+-- 课程C005因选课人数太少停开
+-- 需先删选课记录再删课程（避免违反外键约束）
+DELETE FROM SC WHERE Cno = 'C005';
+DELETE FROM Course WHERE Cno = 'C005';
+
+-- 题目15：毕业生选课记录清理
+-- 学号以2019开头的学生已毕业，清理其选课记录
+DELETE FROM SC WHERE Sno LIKE '2019%';
+
+第四部分：应用SQL进行复杂操作
+
+-- 1. 给选了CS系课程的学生成绩+5分
+UPDATE SC
+SET Grade = Grade + 5
+WHERE Cno IN (
+    SELECT C.Cno
+    FROM Course C
+    JOIN Teacher T ON C.Tno = T.Tno
+    WHERE T.Sdept = 'CS'
+);
+
+-- 2. 按系统计学生平均年龄，存入新表Dept_age
+--    第一步：创建新表
+CREATE TABLE Dept_age (
+    Sdept    CHAR(15),   /* 系名 */
+    Avg_age  SMALLINT    /* 学生平均年龄 */
+);
+
+--    第二步：插入统计结果
+INSERT INTO Dept_age(Sdept, Avg_age)
+    SELECT Sdept, AVG(Sage)
+    FROM Student
+    GROUP BY Sdept;
+
+-- 3. 给选修了"数据库原理"课程的同学成绩加5分
+UPDATE SC
+SET Grade = Grade + 5
+WHERE Cno IN (
+    SELECT Cno
+    FROM Course
+    WHERE Cname = '数据库原理'
+);
+
+-- 4. 触发器或存储过程练习
+-- 学习参考MySQL教程，对SC表创建触发器
+-- 实现功能：当录入成绩在50~59分之间时自动调整为60分
+/*
+DELIMITER //
+CREATE TRIGGER trg_sc_grade_before_insert
+BEFORE INSERT ON SC
+FOR EACH ROW
+BEGIN
+    IF NEW.Grade >= 50 AND NEW.Grade <= 59 THEN
+        SET NEW.Grade = 60;
+    END IF;
+END//
+DELIMITER ;
+
+-- 同理可对UPDATE创建触发器
+DELIMITER //
+CREATE TRIGGER trg_sc_grade_before_update
+BEFORE UPDATE ON SC
+FOR EACH ROW
+BEGIN
+    IF NEW.Grade >= 50 AND NEW.Grade <= 59 THEN
+        SET NEW.Grade = 60;
+    END IF;
+END//
+DELIMITER ;
+*/
+
+
+============================================================
+附录：数据准备参考（建议在练习前执行）
+============================================================
+
+-- 以下为示例数据，可根据实际需要调整
+
+-- Student表示例数据
+INSERT INTO Student VALUES
+    ('202200001', '张三', '男', 20, 'CS', '计算机2003班'),
+    ('202200002', '李四', '女', 19, 'CS', '计算机2003班'),
+    ('202200003', '王五', '男', 21, 'IS', '信息2001班'),
+    ('202200004', '赵六', '女', 20, 'CS', '计算机2003班'),
+    ('202200005', '孙七', '男', 22, 'MA', '数学2001班');
+
+-- Teacher表示例数据
+INSERT INTO Teacher VALUES
+    ('T001', '刘伟',    '男', '1980-05-12', '教授',   'CS'),
+    ('T002', '王明',    '男', '1975-03-22', '副教授', 'CS'),
+    ('T003', '李华',    '女', '1985-09-15', '讲师',   'IS'),
+    ('T004', '张雪',    '女', '1990-01-10', '讲师',   'MA');
+
+-- Course表示例数据
+INSERT INTO Course VALUES
+    ('C001', '高等数学',     NULL, 5, 'T004'),
+    ('C002', '离散数学',     'C001', 4, 'T001'),
+    ('C003', '数据结构',     'C002', 4, 'T001'),
+    ('C004', '数据库系统理论', 'C003', 3, 'T002'),
+    ('C005', '操作系统',     'C003', 3, 'T001');
+
+-- SC表示例数据
+INSERT INTO SC VALUES
+    ('202200001', 'C001', 85),
+    ('202200001', 'C002', 78),
+    ('202200001', 'C003', 92),
+    ('202200002', 'C001', 55),
+    ('202200002', 'C004', 88),
+    ('202200003', 'C001', 45),
+    ('202200003', 'C002', 70),
+    ('202200004', 'C003', 65),
+    ('202200004', 'C004', 90);

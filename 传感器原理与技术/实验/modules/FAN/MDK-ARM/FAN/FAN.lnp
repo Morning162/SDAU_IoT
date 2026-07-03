@@ -1,0 +1,26 @@
+--cpu=Cortex-M4.fp
+"fan\startup_stm32f407xx.o"
+"fan\main.o"
+"fan\gpio.o"
+"fan\stm32f4xx_it.o"
+"fan\stm32f4xx_hal_msp.o"
+"fan\stm32f4xx_hal_tim.o"
+"fan\stm32f4xx_hal_tim_ex.o"
+"fan\stm32f4xx_hal_rcc.o"
+"fan\stm32f4xx_hal_rcc_ex.o"
+"fan\stm32f4xx_hal_flash.o"
+"fan\stm32f4xx_hal_flash_ex.o"
+"fan\stm32f4xx_hal_flash_ramfunc.o"
+"fan\stm32f4xx_hal_gpio.o"
+"fan\stm32f4xx_hal_dma_ex.o"
+"fan\stm32f4xx_hal_dma.o"
+"fan\stm32f4xx_hal_pwr.o"
+"fan\stm32f4xx_hal_pwr_ex.o"
+"fan\stm32f4xx_hal_cortex.o"
+"fan\stm32f4xx_hal.o"
+"fan\stm32f4xx_hal_exti.o"
+"fan\system_stm32f4xx.o"
+--library_type=microlib --strict --scatter "FAN\FAN.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "FAN.map" -o FAN\FAN.axf
